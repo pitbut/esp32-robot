@@ -1,0 +1,6 @@
+flask
+gtts
+pydub
+gunicorn
+requests
+static-ffmpeg

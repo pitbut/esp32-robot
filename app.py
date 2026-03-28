@@ -18,42 +18,42 @@ conversation_history = []
 def index():
     return "ESP32 AI Robot работает!"
 
-# ===== Полный цикл: WAV → текст → Claude → MP3 =====
 @app.route('/talk', methods=['POST'])
 def full_pipeline():
     if not request.data:
         return Response(status=400)
 
     audio_data = request.data
-    print(f"[TALK] Аудио: {len(audio_data)} байт")
+    print("[TALK] Аудио: " + str(len(audio_data)) + " байт")
 
-    # Шаг 1: Whisper STT (бесплатно, без ключа)
+    # Шаг 1: Whisper STT
+    user_text = "привет"
     try:
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            f.write(audio_data)
-            tmp_path = f.name
+        tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        tmp.write(audio_data)
+        tmp.close()
 
         import whisper
-        model = whisper.load_model("tiny")  # tiny = быстро, мало RAM
-        result = model.transcribe(tmp_path, language="ru")
+        model = whisper.load_model("tiny")
+        result = model.transcribe(tmp.name, language="ru")
         user_text = result["text"].strip()
-        print(f"[STT] Распознано: {user_text}")
-        os.unlink(tmp_path)
+        print("[STT] Распознано: " + user_text)
+        os.unlink(tmp.name)
 
     except Exception as e:
-        print(f"[STT] Ошибка: {e}")
-        user_text = "привет"
+        print("[STT] Ошибка: " + str(e))
 
     if not user_text:
         user_text = "привет"
 
     # Шаг 2: Claude AI
+    answer = "Извини, не смог ответить."
     try:
         conversation_history.append({"role": "user", "content": user_text})
         if len(conversation_history) > 10:
             conversation_history.pop(0)
 
-        ai_resp = requests.post(
+        resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
                 "x-api-key": ANTHROPIC_API_KEY,
@@ -67,17 +67,18 @@ def full_pipeline():
                 "messages": conversation_history
             },
             timeout=15
-        ).json()
+        )
 
-        answer = ai_resp["content"][0]["text"]
-        print(f"[AI] Ответ: {answer}")
+        data = resp.json()
+        answer = data["content"][0]["text"]
+        print("[AI] Ответ: " + answer)
+
         conversation_history.append({"role": "assistant", "content": answer})
 
     except Exception as e:
-        print(f"[AI] Ошибка: {e}")
-        answer = "Извини, не смог ответить."
+        print("[AI] Ошибка: " + str(e))
 
-    # Шаг 3: gTTS → MP3
+    # Шаг 3: gTTS -> MP3
     try:
         tts = gTTS(text=answer, lang='ru')
         mp3_buf = io.BytesIO()
@@ -86,19 +87,9 @@ def full_pipeline():
         return Response(mp3_buf.read(), mimetype='audio/mpeg')
 
     except Exception as e:
-        print(f"[TTS] Ошибка: {e}")
+        print("[TTS] Ошибка: " + str(e))
         return Response(status=500)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-```
-
-И обнови `requirements.txt`:
-```
-flask
-gtts
-gunicorn
-requests
-static-ffmpeg
-openai-whisper
-torch

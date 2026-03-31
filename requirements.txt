@@ -1,6 +1,6 @@
 flask
 gtts
+pydub
 gunicorn
 requests
 static-ffmpeg
-openai-whisper
